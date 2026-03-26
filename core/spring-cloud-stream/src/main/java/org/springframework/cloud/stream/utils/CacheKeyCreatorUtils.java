@@ -34,13 +34,16 @@ public final class CacheKeyCreatorUtils {
 	}
 
 	public static String createChannelCacheKey(@Nullable String binderName, String outputName,
-			BindingServiceProperties bindingServiceProperties) {
+	                                           BindingServiceProperties bindingServiceProperties) {
+		// 如果传了 binder name 就用，否则就拿 binding 配置文件的
 		String finalBinderName = getBinderNameIfNeeded(binderName, outputName, bindingServiceProperties);
+
+		// cache key
 		return createChannelCacheKey(finalBinderName, outputName);
 	}
 
 	public static String getBinderNameIfNeeded(@Nullable String binderName, String outputName,
-			BindingServiceProperties bindingServiceProperties) {
+	                                           BindingServiceProperties bindingServiceProperties) {
 		if (Objects.isNull(binderName)) {
 			return bindingServiceProperties.getBinder(outputName);
 		}
@@ -52,11 +55,17 @@ public final class CacheKeyCreatorUtils {
 		return createChannelCacheKey(binderName, outputName);
 	}
 
+	/**
+	 * 如果 binder name 存在就得到 binderName:outputName，否则直接就是 ouputName
+	 *
+	 * @param binderName binder name
+	 * @param outputName out name
+	 * @return cache key
+	 */
 	public static String createChannelCacheKey(String binderName, String outputName) {
 		if (StringUtils.hasText(binderName)) {
 			return binderName + ":" + outputName;
-		}
-		else {
+		} else {
 			return outputName;
 		}
 	}

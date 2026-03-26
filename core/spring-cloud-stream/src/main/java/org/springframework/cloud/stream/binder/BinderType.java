@@ -30,8 +30,16 @@ import java.util.Arrays;
  */
 public class BinderType {
 
+	/**
+	 * kstream 之类的名字
+	 */
 	private final String defaultName;
 
+	/**
+	 * 一个或多个配置类
+	 * <p>
+	 * org.springframework.cloud.stream.binder.kafka.streams.KStreamBinderConfiguration
+	 */
 	private final Class<?>[] configurationClasses;
 
 	public BinderType(String defaultName, Class<?>[] configurationClasses) {

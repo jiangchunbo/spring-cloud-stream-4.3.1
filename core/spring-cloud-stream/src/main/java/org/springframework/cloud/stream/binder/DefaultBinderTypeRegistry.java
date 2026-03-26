@@ -33,6 +33,9 @@ public class DefaultBinderTypeRegistry implements BinderTypeRegistry {
 		this.binderTypes = Collections.unmodifiableMap(new HashMap<>(binderTypes));
 	}
 
+	/**
+	 * 用 name 找到 BinderType
+	 */
 	@Override
 	public BinderType get(String name) {
 		return this.binderTypes.get(name);

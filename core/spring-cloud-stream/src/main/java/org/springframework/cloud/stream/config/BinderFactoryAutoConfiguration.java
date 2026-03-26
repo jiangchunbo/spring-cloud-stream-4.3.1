@@ -97,12 +97,15 @@ public class BinderFactoryAutoConfiguration {
 
 	static Collection<BinderType> parseBinderConfigurations(ClassLoader classLoader,
 			Resource resource) throws IOException, ClassNotFoundException {
+		// spring.binders 是属性文件，所以按照属性文件的方式加载
 		Properties properties = PropertiesLoaderUtils.loadProperties(resource);
 		Collection<BinderType> parsedBinderConfigurations = new ArrayList<>();
 		for (Map.Entry<?, ?> entry : properties.entrySet()) {
+			// 属性文件的 key，比如 kstream 之类的
 			String binderType = (String) entry.getKey();
-			String[] binderConfigurationClassNames = StringUtils
-					.commaDelimitedListToStringArray((String) entry.getValue());
+
+			// value 用分隔符分开
+			String[] binderConfigurationClassNames = StringUtils.commaDelimitedListToStringArray((String) entry.getValue());
 			Class<?>[] binderConfigurationClasses = new Class[binderConfigurationClassNames.length];
 			int i = 0;
 			for (String binderConfigurationClassName : binderConfigurationClassNames) {
@@ -166,6 +169,9 @@ public class BinderFactoryAutoConfiguration {
 		return messageHandlerMethodFactory;
 	}
 
+	/**
+	 * Binder Type 注册表
+	 */
 	@Bean
 	public BinderTypeRegistry binderTypeRegistry(
 			ConfigurableApplicationContext configurableApplicationContext) {
@@ -174,6 +180,7 @@ public class BinderFactoryAutoConfiguration {
 		try {
 			Enumeration<URL> resources = classLoader.getResources("META-INF/spring.binders");
 
+			// 类路径没有找到
 			if (binderTypes.isEmpty() && !Boolean.valueOf(this.selfContained)
 					&& (resources == null || !resources.hasMoreElements())) {
 				this.logger.debug(
@@ -181,10 +188,12 @@ public class BinderFactoryAutoConfiguration {
 								+ " Assuming standard boot 'META-INF/spring.factories' configuration is used");
 			}
 			else {
+				// 解析所有类路径的 spring.binders
 				while (resources.hasMoreElements()) {
 					URL url = resources.nextElement();
 					UrlResource resource = new UrlResource(url);
 					for (BinderType binderType : parseBinderConfigurations(classLoader, resource)) {
+						// binderType 自己存储 name 也作为 key
 						binderTypes.put(binderType.getDefaultName(), binderType);
 					}
 				}
@@ -193,6 +202,7 @@ public class BinderFactoryAutoConfiguration {
 		catch (IOException | ClassNotFoundException e) {
 			throw new BeanCreationException("Cannot create binder factory:", e);
 		}
+		// binderTypes 是一个 Map 注册表
 		return new DefaultBinderTypeRegistry(binderTypes);
 	}
 

@@ -107,7 +107,7 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 	private static final ReentrantLock lock = new ReentrantLock();
 
 	public DefaultBinderFactory(Map<String, BinderConfiguration> binderConfigurations,
-								BinderTypeRegistry binderTypeRegistry, BinderCustomizer binderCustomizer) {
+	                            BinderTypeRegistry binderTypeRegistry, BinderCustomizer binderCustomizer) {
 		this.binderConfigurations = new HashMap<>(binderConfigurations);
 		this.binderTypeRegistry = binderTypeRegistry;
 		this.binderCustomizer = binderCustomizer;
@@ -169,7 +169,7 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 		return this.running.get();
 	}
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Override
 	public <T> Binder<T, ?, ?> getBinder(String name, Class<? extends T> bindingTargetType) {
 		lock.lock();
@@ -180,17 +180,14 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 			Binder<T, ConsumerProperties, ProducerProperties> binder;
 			if (StringUtils.hasText(binderName) && binders.containsKey(binderName)) {
 				binder = (Binder<T, ConsumerProperties, ProducerProperties>) this.context.getBean(binderName);
-			}
-			else if (binders.size() == 1) {
+			} else if (binders.size() == 1) {
 				binder = binders.values().iterator().next();
-			}
-			else if (binders.size() > 1) {
+			} else if (binders.size() > 1) {
 				throw new IllegalStateException(
 					"Multiple binders are available, however neither default nor "
 						+ "per-destination binder name is provided. Available binders are "
 						+ binders.keySet());
-			}
-			else {
+			} else {
 				/*
 				 * This is the fallback to the old bootstrap that relies on spring.binders.
 				 */
@@ -200,8 +197,7 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 				this.binderCustomizer.customize(binder, binderName);
 			}
 			return binder;
-		}
-		finally {
+		} finally {
 			lock.unlock();
 		}
 	}
@@ -211,6 +207,8 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 		if (!CollectionUtils.isEmpty(this.binderChildContextInitializers)) {
 			return this.doGetBinderAOT(name, bindingTargetType);
 		}
+
+		// 大多数走这里
 		return this.doGetBinderConventional(name, bindingTargetType);
 	}
 
@@ -242,7 +240,7 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 		}
 
 		throw new IllegalStateException("Requested binder '" + name + "' did not match available binders: " +
-				this.binderChildContextInitializers.keySet());
+			this.binderChildContextInitializers.keySet());
 	}
 
 	private <T> String getKafkaStreamsBinderSimpleName(Class<? extends T> bindingTargetType) {
@@ -254,45 +252,48 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 		return className.contains("KStream") || className.contains("KTable");
 	}
 
+
+	/**
+	 * 按照约定获取 Binder
+	 *
+	 * @param name binder name
+	 */
 	private <T> Binder<T, ConsumerProperties, ProducerProperties> doGetBinderConventional(String name,
-			Class<? extends T> bindingTargetType) {
+	                                                                                      Class<? extends T> bindingTargetType) {
 
 		if (!MessageChannel.class.isAssignableFrom(bindingTargetType)
-				&& !PollableMessageSource.class.isAssignableFrom(bindingTargetType)) {
+			&& !PollableMessageSource.class.isAssignableFrom(bindingTargetType)) {
 			String bindingTargetTypeName = StringUtils.hasText(name) ? name : bindingTargetType.getSimpleName().toLowerCase(Locale.ROOT);
 			Binder<T, ConsumerProperties, ProducerProperties> binderInstance = getBinderInstance(bindingTargetTypeName);
 			return binderInstance;
 		}
+
+		// 找到 configuration name
 		String configurationName;
 		// Fall back to a default if no argument is provided
 		if (!StringUtils.hasText(name)) {
-			Assert.notEmpty(this.binderConfigurations,
-					"A default binder has been requested, but there is no binder available ");
+			Assert.notEmpty(this.binderConfigurations, "A default binder has been requested, but there is no binder available ");
+
 			if (!StringUtils.hasText(this.defaultBinder)) {
 				Set<String> defaultCandidateConfigurations = new HashSet<>();
-				for (Map.Entry<String, BinderConfiguration> binderConfigurationEntry : this.binderConfigurations
-						.entrySet()) {
+				for (Map.Entry<String, BinderConfiguration> binderConfigurationEntry : this.binderConfigurations.entrySet()) {
 					if ("integration".equals(binderConfigurationEntry.getKey())) {
 						defaultCandidateConfigurations.add(binderConfigurationEntry.getKey());
 						break;
-					}
-					else if (binderConfigurationEntry.getValue().isDefaultCandidate()) {
-						defaultCandidateConfigurations
-								.add(binderConfigurationEntry.getKey());
+					} else if (binderConfigurationEntry.getValue().isDefaultCandidate()) {
+						defaultCandidateConfigurations.add(binderConfigurationEntry.getKey());
 					}
 				}
 				if (defaultCandidateConfigurations.size() == 1) {
 					configurationName = defaultCandidateConfigurations.iterator().next();
-					this.defaultBinderForBindingTargetType
-							.put(bindingTargetType.getName(), configurationName);
-				}
-				else {
+					this.defaultBinderForBindingTargetType.put(bindingTargetType.getName(), configurationName);
+				} else {
 					List<String> candidatesForBindableType = new ArrayList<>();
 					for (String defaultCandidateConfiguration : defaultCandidateConfigurations) {
 						Binder<Object, ?, ?> binderInstance = getBinderInstance(defaultCandidateConfiguration);
 
 						Class<?> binderType = GenericsUtils.getParameterType(
-								binderInstance.getClass(), Binder.class, 0);
+							binderInstance.getClass(), Binder.class, 0);
 						if (binderType.isAssignableFrom(bindingTargetType)) {
 							populateCandidatesForBindableType(bindingTargetType, candidatesForBindableType, defaultCandidateConfiguration);
 						}
@@ -300,40 +301,39 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 					if (candidatesForBindableType.size() == 1) {
 						configurationName = candidatesForBindableType.iterator().next();
 						this.defaultBinderForBindingTargetType
-								.put(bindingTargetType.getName(), configurationName);
-					}
-					else {
+							.put(bindingTargetType.getName(), configurationName);
+					} else {
 						String countMsg = (candidatesForBindableType.size() == 0)
-								? "are no binders" : "is more than one binder";
+							? "are no binders" : "is more than one binder";
 						throw new IllegalStateException(
-								"A default binder has been requested, but there "
-										+ countMsg + " available for '"
-										+ bindingTargetType.getName() + "' : "
-										+ StringUtils.collectionToCommaDelimitedString(
-												candidatesForBindableType)
-										+ ", and no default binder has been set.");
+							"A default binder has been requested, but there "
+								+ countMsg + " available for '"
+								+ bindingTargetType.getName() + "' : "
+								+ StringUtils.collectionToCommaDelimitedString(
+								candidatesForBindableType)
+								+ ", and no default binder has been set.");
 					}
 				}
-			}
-			else {
+			} else {
 				configurationName = this.defaultBinder;
 			}
-		}
-		else {
+		} else {
 			configurationName = name;
 		}
+
+
 		Binder<T, ConsumerProperties, ProducerProperties> binderInstance = getBinderInstance(configurationName);
 		Assert.state(verifyBinderTypeMatchesTarget(binderInstance, bindingTargetType),
-				"The binder '" + configurationName + "' cannot bind a "
-						+ bindingTargetType.getName());
+			"The binder '" + configurationName + "' cannot bind a "
+				+ bindingTargetType.getName());
 		return binderInstance;
 	}
 
 	private <T> void populateCandidatesForBindableType(Class<? extends T> bindingTargetType, List<String> candidatesForBindableType,
-													String defaultCandidateConfiguration) {
+	                                                   String defaultCandidateConfiguration) {
 		// Going by the convention of proper reactor based binders start with the key literal - reactor
 		boolean isCandidate = (FluxMessageChannel.class.isAssignableFrom(bindingTargetType) && defaultCandidateConfiguration.startsWith("reactor"))
-				|| !defaultCandidateConfiguration.startsWith("reactor");
+			|| !defaultCandidateConfiguration.startsWith("reactor");
 		if (isCandidate) {
 			candidatesForBindableType.add(defaultCandidateConfiguration);
 		}
@@ -343,18 +343,19 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 	 * Return true if the binder is a {@link PollableConsumerBinder} and the target type
 	 * is a {@link PollableSource} and their generic types match (e.g. MessageHandler), OR
 	 * if it's a {@link Binder} and the target matches the binder's generic type.
-	 * @param <T> bindng target type
-	 * @param binderInstance the binder.
+	 *
+	 * @param <T>               bindng target type
+	 * @param binderInstance    the binder.
 	 * @param bindingTargetType the binding target type.
 	 * @return true if the conditions match.
 	 */
 	private <T> boolean verifyBinderTypeMatchesTarget(Binder<T, ?, ?> binderInstance,
-			Class<? extends T> bindingTargetType) {
+	                                                  Class<? extends T> bindingTargetType) {
 		return (binderInstance instanceof PollableConsumerBinder && GenericsUtils
-				.checkCompatiblePollableBinder(binderInstance, bindingTargetType))
-				|| GenericsUtils
-						.getParameterType(binderInstance.getClass(), Binder.class, 0)
-						.isAssignableFrom(bindingTargetType);
+			.checkCompatiblePollableBinder(binderInstance, bindingTargetType))
+			|| GenericsUtils
+			.getParameterType(binderInstance.getClass(), Binder.class, 0)
+			.isAssignableFrom(bindingTargetType);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -374,15 +375,14 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 				this.binderChildContextInitializers.get(configurationName).initialize(binderProducingContext);
 				registerOuterContextBean(binderProperties, binderProducingContext);
 				binderProducingContext.refresh();
-			}
-			else {
+			} else {
 				this.logger.info("Constructing binder child context for " + configurationName);
 				Assert.state(binderConfiguration != null, "Unknown binder configuration: " + configurationName);
 				this.flatten(null, binderConfiguration.getProperties(), binderProperties);
 				BinderType binderType = this.binderTypeRegistry.get(binderConfiguration.getBinderType());
 				Assert.notNull(binderType, "Binder type " + binderConfiguration.getBinderType() + " is not defined");
 				binderProducingContext = this.initializeBinderContextSimple(configurationName, binderProperties,
-						binderType, binderConfiguration, true);
+					binderType, binderConfiguration, true);
 			}
 
 			Map<String, MessageConverter> messageConverters = binderProducingContext.getBeansOfType(MessageConverter.class);
@@ -405,16 +405,16 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 			if (!CollectionUtils.isEmpty(this.listeners)) {
 				for (Listener binderFactoryListener : this.listeners) {
 					binderFactoryListener.afterBinderContextInitialized(configurationName,
-							binderProducingContext);
+						binderProducingContext);
 				}
 			}
 			logger.info("Caching the binder: " + configurationName);
 			this.binderInstanceCache.put(configurationName,
-					new SimpleImmutableEntry<>(binder, binderProducingContext));
+				new SimpleImmutableEntry<>(binder, binderProducingContext));
 		}
 		logger.trace("Retrieving cached binder: " + configurationName);
 		return (Binder<T, ConsumerProperties, ProducerProperties>) this.binderInstanceCache
-				.get(configurationName).getKey();
+			.get(configurationName).getKey();
 	}
 
 
@@ -427,6 +427,7 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 
 	/**
 	 * Creates a binder child application context that can be used by AOT for pre-generation.
+	 *
 	 * @param configurationName binder configuration name
 	 * @return binder child application context that has not been refreshed
 	 */
@@ -456,16 +457,17 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 
 	/**
 	 * Creates and optionally refreshes a binder child application context.
-	 * @param configurationName binder configuration name
-	 * @param binderProperties binder properties
-	 * @param binderType binder type
+	 *
+	 * @param configurationName   binder configuration name
+	 * @param binderProperties    binder properties
+	 * @param binderType          binder type
 	 * @param binderConfiguration binder configuration
-	 * @param refresh whether to refresh the context
+	 * @param refresh             whether to refresh the context
 	 * @return refreshed binder child application context
 	 */
 	@SuppressWarnings("rawtypes")
 	ConfigurableApplicationContext initializeBinderContextSimple(String configurationName, Map<String, Object> binderProperties,
-			BinderType binderType, BinderConfiguration binderConfiguration, boolean refresh) {
+	                                                             BinderType binderType, BinderConfiguration binderConfiguration, boolean refresh) {
 		AnnotationConfigApplicationContext binderProducingContext = new AnnotationConfigApplicationContext();
 		if (this.context != null) {
 			binderProducingContext.getBeanFactory().setConversionService(this.context.getBeanFactory().getConversionService());
@@ -475,21 +477,19 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 		binderProducingContext.getEnvironment().getPropertySources().addFirst(binderPropertySource);
 		binderProducingContext.setDisplayName(configurationName + "_context");
 		boolean useApplicationContextAsParent = binderProperties.isEmpty()
-				&& this.context != null;
+			&& this.context != null;
 		ConfigurableEnvironment environment = this.context != null
-				? this.context.getEnvironment() : null;
+			? this.context.getEnvironment() : null;
 		if (useApplicationContextAsParent) {
 			binderProducingContext.setParent(this.context);
-		}
-		else if (this.context != null) {
+		} else if (this.context != null) {
 			binderProducingContext.addApplicationListener(new ApplicationListener<ApplicationEvent>() {
 				@Override
 				public void onApplicationEvent(ApplicationEvent event) {
 					if (context != null) {
 						try {
 							context.publishEvent(event);
-						}
-						catch (Exception e) {
+						} catch (Exception e) {
 							logger.warn("Failed to publish " + event, e);
 						}
 					}
@@ -501,12 +501,12 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 			}
 
 			if (environment != null && (useApplicationContextAsParent
-					|| binderConfiguration.isInheritEnvironment())) {
+				|| binderConfiguration.isInheritEnvironment())) {
 				binderProducingContext.getEnvironment().merge(environment);
 				binderProducingContext.getEnvironment().getPropertySources().remove("configurationProperties");
 				binderProducingContext.getEnvironment().getPropertySources()
-				.addFirst(new MapPropertySource("defaultBinderFactoryProperties",
-					Collections.singletonMap("spring.main.web-application-type", "NONE")));
+					.addFirst(new MapPropertySource("defaultBinderFactoryProperties",
+						Collections.singletonMap("spring.main.web-application-type", "NONE")));
 			}
 		}
 
@@ -520,8 +520,7 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 				Stream.of(sources.split(",")).forEach(source -> {
 					try {
 						sourceClasses.add(Thread.currentThread().getContextClassLoader().loadClass(source.trim()));
-					}
-					catch (Exception e) {
+					} catch (Exception e) {
 						throw new IllegalStateException("Failed to load class " + source, e);
 					}
 				});
@@ -531,7 +530,7 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 		// Then add binder configuration classes
 		sourceClasses.addAll(Arrays.asList(binderType.getConfigurationClasses()));
 
-		binderProducingContext.register(sourceClasses.toArray(new Class[] {}));
+		binderProducingContext.register(sourceClasses.toArray(new Class[]{}));
 
 		if (refresh) {
 			if (!useApplicationContextAsParent || "integration".equals(binderType.getDefaultName())) {
@@ -563,16 +562,14 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 							Object bean = entry.getValue();
 							if (bean instanceof Converter) {
 								binderProducingConversionService.addConverter((Converter<?, ?>) bean);
-							}
-							else {
+							} else {
 								toContext.registerBean(entry.getKey() + "_child", beanType, () -> entry.getValue());
 							}
 						});
 					}
 				}
 			}
-		}
-		catch (Exception e) {
+		} catch (Exception e) {
 			logger.warn("Failed to propagate child beans. This may cause issues in your application", e);
 		}
 	}
@@ -581,8 +578,7 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 	private Class<Object> loadClass(String className) {
 		try {
 			return (Class<Object>) ClassUtils.getDefaultClassLoader().loadClass(className.trim());
-		}
-		catch (Throwable e) {
+		} catch (Throwable e) {
 			logger.debug("Attempt to load " + className + " failed.", e);
 			return null;
 		}
@@ -591,13 +587,13 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 	/**
 	 * Creates a bare minimum application context that can be initialized by AOT.
 	 *
-	 * @param configurationName binder configuration name
-	 * @param binderProperties binder properties
+	 * @param configurationName   binder configuration name
+	 * @param binderProperties    binder properties
 	 * @param binderConfiguration binder configuration
 	 * @return a binder child application context suitable for AOT initialization
 	 */
 	GenericApplicationContext createUnitializedContextForAOT(String configurationName,
-			Map<String, Object> binderProperties, BinderConfiguration binderConfiguration) {
+	                                                         Map<String, Object> binderProperties, BinderConfiguration binderConfiguration) {
 		GenericApplicationContext binderContext = new GenericApplicationContext();
 		// Set the conversion service on the binder producing context to handle complex properties
 		if (this.context != null) {
@@ -610,14 +606,12 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 		ConfigurableEnvironment environment = this.context != null ? this.context.getEnvironment() : null;
 		if (useApplicationContextAsParent) {
 			binderContext.setParent(this.context);
-		}
-		else if (this.context != null) {
+		} else if (this.context != null) {
 			binderContext.addApplicationListener(event -> {
 				if (context != null) {
 					try {
 						context.publishEvent(event);
-					}
-					catch (Exception e) {
+					} catch (Exception e) {
 						logger.warn("Failed to publish " + event, e);
 					}
 				}
@@ -626,8 +620,8 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 				binderContext.getEnvironment().merge(environment);
 				binderContext.getEnvironment().getPropertySources().remove("configurationProperties");
 				binderContext.getEnvironment().getPropertySources()
-						.addFirst(new MapPropertySource("defaultBinderFactoryProperties",
-								Collections.singletonMap("spring.main.web-application-type", "NONE")));
+					.addFirst(new MapPropertySource("defaultBinderFactoryProperties",
+						Collections.singletonMap("spring.main.web-application-type", "NONE")));
 			}
 		}
 		return binderContext;
@@ -647,17 +641,17 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 	/**
 	 * Ensures that nested properties are flattened (i.e., foo.bar=baz instead of
 	 * foo={bar=baz}).
-	 * @param propertyName property name to flatten
-	 * @param value value that contains the property name
+	 *
+	 * @param propertyName        property name to flatten
+	 * @param value               value that contains the property name
 	 * @param flattenedProperties map to which we'll add the flattened property
 	 */
 	@SuppressWarnings("unchecked")
 	private void flatten(String propertyName, Object value, Map<String, Object> flattenedProperties) {
 		if (value instanceof Map valueAsMap) {
 			valueAsMap.forEach((k, v) -> flatten(
-					(propertyName != null ? propertyName + "." : "") + k, v, flattenedProperties));
-		}
-		else {
+				(propertyName != null ? propertyName + "." : "") + k, v, flattenedProperties));
+		} else {
 			flattenedProperties.put(propertyName, value.toString());
 		}
 	}
@@ -673,16 +667,17 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 		/**
 		 * Applying additional capabilities to the binder after the binder context has
 		 * been initialized.
+		 *
 		 * @param configurationName the binder configuration name
-		 * @param binderContext the application context of the binder
+		 * @param binderContext     the application context of the binder
 		 */
 		void afterBinderContextInitialized(String configurationName,
-				ConfigurableApplicationContext binderContext);
+		                                   ConfigurableApplicationContext binderContext);
 
 	}
 
 	private static class InitializerWithOuterContext
-			implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+		implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
 		private final ApplicationContext context;
 
@@ -693,7 +688,7 @@ public class DefaultBinderFactory implements BinderFactory, DisposableBean, Appl
 		@Override
 		public void initialize(ConfigurableApplicationContext applicationContext) {
 			applicationContext.getBeanFactory().registerSingleton("outerContext",
-					this.context);
+				this.context);
 		}
 
 	}

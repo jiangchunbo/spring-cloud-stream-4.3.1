@@ -446,6 +446,8 @@ public class BindingService {
 
 	public BinderWrapper createBinderWrapper(@Nullable String binderName, String destinationName, Class<?> outputClass) {
 		binderName = getBinderNameIfNeeded(binderName, destinationName, bindingServiceProperties);
+
+		// Binder
 		Binder binder = binderFactory.getBinder(binderName, outputClass);
 		String channelCacheKey = createChannelCacheKey(binderName, destinationName);
 		return new BinderWrapper(binder, destinationName, channelCacheKey);

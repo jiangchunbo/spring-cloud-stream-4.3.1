@@ -102,7 +102,7 @@ public class BindingServiceProperties
 	/**
 	 * Additional binding properties (see {@link BinderProperties}) per binding name
 	 * (e.g., 'input`).
-	 *
+	 * <p>
 	 * For example; This sets the content-type for the 'input' binding of a Sink
 	 * application: 'spring.cloud.stream.bindings.input.contentType=text/plain'
 	 */
@@ -189,13 +189,13 @@ public class BindingServiceProperties
 
 	@Override
 	public void setApplicationContext(ApplicationContext applicationContext)
-			throws BeansException {
+		throws BeansException {
 		this.applicationContext = (ConfigurableApplicationContext) applicationContext;
 		GenericConversionService cs = (GenericConversionService) IntegrationUtils
-				.getConversionService(this.applicationContext.getBeanFactory());
+			.getConversionService(this.applicationContext.getBeanFactory());
 		if (this.applicationContext.containsBean("spelConverter")) {
 			Converter<?, ?> converter = (Converter<?, ?>) this.applicationContext
-					.getBean("spelConverter");
+				.getBean("spelConverter");
 			cs.addConverter(converter);
 		}
 	}
@@ -208,8 +208,8 @@ public class BindingServiceProperties
 	public void afterPropertiesSet() throws Exception {
 		if (this.conversionService == null) {
 			this.conversionService = this.applicationContext.getBean(
-					IntegrationUtils.INTEGRATION_CONVERSION_SERVICE_BEAN_NAME,
-					ConversionService.class);
+				IntegrationUtils.INTEGRATION_CONVERSION_SERVICE_BEAN_NAME,
+				ConversionService.class);
 		}
 	}
 
@@ -224,6 +224,7 @@ public class BindingServiceProperties
 
 	/**
 	 * Return configuration properties as Map.
+	 *
 	 * @return map of binding configuration properties.
 	 */
 	public Map<String, Object> asMapProperties() {
@@ -261,6 +262,14 @@ public class BindingServiceProperties
 		return consumerProperties;
 	}
 
+	/**
+	 * 获取生产者属性
+	 * <p>
+	 * StreamBridge 一般使用 out-0 结尾，因为它们是生产者，需要发送到一个 binding
+	 *
+	 * @param outputBindingName out binding name
+	 * @return 生产者属性
+	 */
 	public ProducerProperties getProducerProperties(String outputBindingName) {
 		Assert.notNull(outputBindingName, "The output binding name cannot be null");
 		BindingProperties bindingProperties = getBindingProperties(outputBindingName);
@@ -272,6 +281,14 @@ public class BindingServiceProperties
 		return producerProperties;
 	}
 
+	/**
+	 * 获取绑定属性
+	 * <p>
+	 * 这里并不关心你的 binding 是 out 还是 in
+	 *
+	 * @param bindingName binding name
+	 * @return 绑定属性
+	 */
 	public BindingProperties getBindingProperties(String bindingName) {
 		this.bindIfNecessary(bindingName);
 		BindingProperties bindingProperties = this.bindings.get(bindingName);
@@ -300,7 +317,7 @@ public class BindingServiceProperties
 	}
 
 	public void updateProducerProperties(String bindingName,
-			ProducerProperties producerProperties) {
+	                                     ProducerProperties producerProperties) {
 		if (this.bindings.containsKey(bindingName)) {
 			this.bindings.get(bindingName).setProducer(producerProperties);
 		}
@@ -343,15 +360,15 @@ public class BindingServiceProperties
 	private void bindToDefault(String binding) {
 		BindingProperties bindingPropertiesTarget = new BindingProperties();
 		Binder binder = new Binder(
-				ConfigurationPropertySources
-						.get(this.applicationContext.getEnvironment()),
-				new PropertySourcesPlaceholdersResolver(
-						this.applicationContext.getEnvironment()),
-				IntegrationUtils.getConversionService(
-						this.applicationContext.getBeanFactory()),
-				null);
+			ConfigurationPropertySources
+				.get(this.applicationContext.getEnvironment()),
+			new PropertySourcesPlaceholdersResolver(
+				this.applicationContext.getEnvironment()),
+			IntegrationUtils.getConversionService(
+				this.applicationContext.getBeanFactory()),
+			null);
 		binder.bind("spring.cloud.stream.default",
-				Bindable.ofInstance(bindingPropertiesTarget));
+			Bindable.ofInstance(bindingPropertiesTarget));
 		this.bindings.put(binding, bindingPropertiesTarget);
 	}
 }

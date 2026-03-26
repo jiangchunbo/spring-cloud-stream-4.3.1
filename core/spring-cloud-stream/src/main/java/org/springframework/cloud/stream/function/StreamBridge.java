@@ -199,6 +199,8 @@ public final class StreamBridge implements StreamOperations, SmartInitializingSi
 			this.afterSingletonsInstantiated();
 		}
 		ProducerProperties producerProperties = this.bindingServiceProperties.getProducerProperties(bindingName);
+
+		// 注意: binding name 和 binder name (可能是 null)
 		MessageChannel messageChannel = this.resolveDestination(bindingName, producerProperties, binderName);
 
 		Function functionToInvoke = this.getStreamBridgeFunction(outputContentType.toString(), producerProperties);
@@ -266,9 +268,12 @@ public final class StreamBridge implements StreamOperations, SmartInitializingSi
 			return;
 		}
 
+		// 似乎是创建一个类似 Function<Object,Object> 的函数，接下来要注册
+		// PassThruFunction : 原样穿透函数，输入什么，就输出什么
 		FunctionRegistration<Function<Object, Object>> fr = new FunctionRegistration<>(new PassThruFunction(), STREAM_BRIDGE_FUNC_NAME);
 		fr.getProperties().put("singleton", "false");
 
+		// Function Function<Object,Object>
 		Type functionType = ResolvableType.forClassWithGenerics(Function.class, Object.class, Object.class).getType();
 		((FunctionRegistry) this.functionCatalog).register(fr.type(functionType));
 		this.initialized = true;
@@ -292,10 +297,12 @@ public final class StreamBridge implements StreamOperations, SmartInitializingSi
 					}
 				}
 				else {
+					// 一般创建的都是 DirectWithAttributesChannel
 					messageChannel = this.isAsync() ? new ExecutorChannel(this.executorService) : new DirectWithAttributesChannel();
 					((AbstractSubscribableChannel) messageChannel).setApplicationContext(applicationContext);
 					((AbstractSubscribableChannel) messageChannel).setComponentName(destinationName);
 
+					// 创建 Binder + Wrapper
 					BinderWrapper binderWrapper = bindingService.createBinderWrapper(binderName, destinationName, messageChannel.getClass());
 					((AbstractSubscribableChannel) messageChannel).registerObservationRegistry(observationRegistry);
 					if (this.destinationBindingCallback != null) {

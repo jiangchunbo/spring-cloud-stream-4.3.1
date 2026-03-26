@@ -81,9 +81,9 @@ import org.springframework.util.ObjectUtils;
  * @author Omer Celik
  */
 @AutoConfiguration
-@EnableConfigurationProperties({ BindingServiceProperties.class,
-		SpringIntegrationProperties.class})
-@Import({ SpelExpressionConverterConfiguration.class })
+@EnableConfigurationProperties({BindingServiceProperties.class,
+	SpringIntegrationProperties.class})
+@Import({SpelExpressionConverterConfiguration.class})
 @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
 @ConditionalOnBean(value = BinderTypeRegistry.class, search = SearchStrategy.CURRENT)
 public class BindingServiceConfiguration {
@@ -92,57 +92,63 @@ public class BindingServiceConfiguration {
 	private Collection<DefaultBinderFactory.Listener> binderFactoryListeners;
 
 	public static Map<String, BinderConfiguration> getBinderConfigurations(
-			BinderTypeRegistry binderTypeRegistry,
-			BindingServiceProperties bindingServiceProperties) {
+		BinderTypeRegistry binderTypeRegistry,
+		BindingServiceProperties bindingServiceProperties) {
 
 		Map<String, BinderConfiguration> binderConfigurations = new HashMap<>();
-		Map<String, BinderProperties> declaredBinders = bindingServiceProperties
-				.getBinders();
+
+		// 属性中配置的 binder (所以命名为 declaredBinders)
+		Map<String, BinderProperties> declaredBinders = bindingServiceProperties.getBinders();
+
+		// 检查是否存在默认的 candidate
 		boolean defaultCandidatesExist = false;
-		Iterator<Map.Entry<String, BinderProperties>> binderPropertiesIterator = declaredBinders
-				.entrySet().iterator();
+		Iterator<Map.Entry<String, BinderProperties>> binderPropertiesIterator = declaredBinders.entrySet().iterator();
 		while (!defaultCandidatesExist && binderPropertiesIterator.hasNext()) {
 			defaultCandidatesExist = binderPropertiesIterator.next().getValue()
-					.isDefaultCandidate();
+				.isDefaultCandidate();
 		}
 		List<String> existingBinderConfigurations = new ArrayList<>();
-		for (Map.Entry<String, BinderProperties> binderEntry : declaredBinders
-				.entrySet()) {
+		for (Map.Entry<String, BinderProperties> binderEntry : declaredBinders.entrySet()) {
 			BinderProperties binderProperties = binderEntry.getValue();
+
+			// 如果注册表存在，那么就构造了一个 BinderConfiguration 放到 binderConfigurations
 			if (binderTypeRegistry.get(binderEntry.getKey()) != null) {
 				binderConfigurations.put(binderEntry.getKey(),
-						new BinderConfiguration(binderEntry.getKey(),
-								binderProperties.getEnvironment(),
-								binderProperties.isInheritEnvironment(),
-								binderProperties.isDefaultCandidate()));
+					new BinderConfiguration(binderEntry.getKey(),
+						binderProperties.getEnvironment(),
+						binderProperties.isInheritEnvironment(),
+						binderProperties.isDefaultCandidate()));
 				existingBinderConfigurations.add(binderEntry.getKey());
-			}
-			else {
+			} else {
 				Assert.hasText(binderProperties.getType(),
-						"No 'type' property present for custom binder "
-								+ binderEntry.getKey());
+					"No 'type' property present for custom binder "
+						+ binderEntry.getKey());
+				// 注册表不存在，就用 binderProperties 定义的 type
 				binderConfigurations.put(binderEntry.getKey(),
-						new BinderConfiguration(binderProperties.getType(),
-								binderProperties.getEnvironment(),
-								binderProperties.isInheritEnvironment(),
-								binderProperties.isDefaultCandidate()));
+					new BinderConfiguration(binderProperties.getType(),
+						binderProperties.getEnvironment(),
+						binderProperties.isInheritEnvironment(),
+						binderProperties.isDefaultCandidate()));
 				existingBinderConfigurations.add(binderEntry.getKey());
 			}
 		}
-		for (Map.Entry<String, BinderConfiguration> configurationEntry : binderConfigurations
-				.entrySet()) {
+
+		// 检测已经收集的配置是否存在默认的 candidate
+		for (Map.Entry<String, BinderConfiguration> configurationEntry : binderConfigurations.entrySet()) {
 			if (configurationEntry.getValue().isDefaultCandidate()) {
 				defaultCandidatesExist = true;
 				break;
 			}
 		}
+
+		// 下面这段意思是，如果没有默认的 candidate，就把注册表里的都注册上去
+		// 注册表加进来都是 defaultCandidate
 		if (!defaultCandidatesExist) {
-			for (Map.Entry<String, BinderType> binderEntry : binderTypeRegistry.getAll()
-					.entrySet()) {
+			for (Map.Entry<String, BinderType> binderEntry : binderTypeRegistry.getAll().entrySet()) {
 				if (!existingBinderConfigurations.contains(binderEntry.getKey())) {
 					binderConfigurations.put(binderEntry.getKey(),
-							new BinderConfiguration(binderEntry.getKey(), new HashMap<>(),
-									true, true)); // true, !"integration".equals(binderEntry.getKey())));
+						new BinderConfiguration(binderEntry.getKey(), new HashMap<>(),
+							true, true)); // true, !"integration".equals(binderEntry.getKey())));
 				}
 			}
 		}
@@ -155,7 +161,7 @@ public class BindingServiceConfiguration {
 			@Override
 			public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
 				if ("errorChannel".equals(beanName) && bean instanceof PublishSubscribeChannel publishSubscribeChannel) {
-						publishSubscribeChannel.setIgnoreFailures(true);
+					publishSubscribeChannel.setIgnoreFailures(true);
 				}
 				return bean;
 			}
@@ -164,7 +170,7 @@ public class BindingServiceConfiguration {
 
 	@Bean
 	public BindingHandlerAdvise BindingHandlerAdvise(
-			@Nullable MappingsProvider[] providers) {
+		@Nullable MappingsProvider[] providers) {
 		Map<ConfigurationPropertyName, ConfigurationPropertyName> additionalMappings = new HashMap<>();
 		if (!ObjectUtils.isEmpty(providers)) {
 			for (int i = 0; i < providers.length; i++) {
@@ -178,12 +184,16 @@ public class BindingServiceConfiguration {
 	@Bean
 	@ConditionalOnMissingBean(BinderFactory.class)
 	public DefaultBinderFactory binderFactory(BinderTypeRegistry binderTypeRegistry,
-			BindingServiceProperties bindingServiceProperties,
-			ObjectProvider<BinderCustomizer> binderCustomizerProvider,
-			BinderChildContextInitializer binderChildContextInitializer) {
+	                                          BindingServiceProperties bindingServiceProperties,
+	                                          ObjectProvider<BinderCustomizer> binderCustomizerProvider,
+	                                          BinderChildContextInitializer binderChildContextInitializer) {
+
+		// 创建 DefaultBinderFactory
 		DefaultBinderFactory binderFactory = new DefaultBinderFactory(
-				getBinderConfigurations(binderTypeRegistry, bindingServiceProperties),
-				binderTypeRegistry, binderCustomizerProvider.getIfUnique());
+			getBinderConfigurations(binderTypeRegistry, bindingServiceProperties),
+			binderTypeRegistry, binderCustomizerProvider.getIfUnique());
+
+		// 默认的 binder (kafka rabbitmq)
 		binderFactory.setDefaultBinder(bindingServiceProperties.getDefaultBinder());
 		binderFactory.setListeners(this.binderFactoryListeners);
 		binderChildContextInitializer.setBinderFactory(binderFactory);
@@ -201,8 +211,8 @@ public class BindingServiceConfiguration {
 	// already exists).
 	@ConditionalOnMissingBean(search = SearchStrategy.CURRENT)
 	public BindingService bindingService(
-			BindingServiceProperties bindingServiceProperties,
-			BinderFactory binderFactory, TaskScheduler taskScheduler, @Nullable ObjectMapper objectMapper) {
+		BindingServiceProperties bindingServiceProperties,
+		BinderFactory binderFactory, TaskScheduler taskScheduler, @Nullable ObjectMapper objectMapper) {
 		objectMapper = objectMapper == null ? new ObjectMapper() : objectMapper;
 		return new BindingService(bindingServiceProperties, binderFactory, taskScheduler, objectMapper);
 	}
@@ -210,7 +220,7 @@ public class BindingServiceConfiguration {
 	@Bean
 	@DependsOn("bindingService")
 	public OutputBindingLifecycle outputBindingLifecycle(BindingService bindingService,
-			Map<String, Bindable> bindables) {
+	                                                     Map<String, Bindable> bindables) {
 
 		return new OutputBindingLifecycle(bindingService, bindables);
 	}
@@ -218,13 +228,13 @@ public class BindingServiceConfiguration {
 	@Bean
 	@DependsOn("bindingService")
 	public InputBindingLifecycle inputBindingLifecycle(BindingService bindingService,
-			Map<String, Bindable> bindables) {
+	                                                   Map<String, Bindable> bindables) {
 		return new InputBindingLifecycle(bindingService, bindables);
 	}
 
 	@Bean
 	public BindingsLifecycleController bindingsLifecycleController(List<InputBindingLifecycle> inputBindingLifecycles,
-			List<OutputBindingLifecycle> outputBindingsLifecycles) {
+	                                                               List<OutputBindingLifecycle> outputBindingsLifecycles) {
 		return new BindingsLifecycleController(inputBindingLifecycles, outputBindingsLifecycles);
 	}
 
@@ -241,13 +251,13 @@ public class BindingServiceConfiguration {
 
 	@Bean
 	public ApplicationListener<ContextRefreshedEvent> appListener(
-			SpringIntegrationProperties springIntegrationProperties) {
+		SpringIntegrationProperties springIntegrationProperties) {
 		return event -> event.getApplicationContext()
-				.getBeansOfType(AbstractReplyProducingMessageHandler.class)
-				.values()
-				.forEach(mh -> mh
-						.addNotPropagatedHeaders(springIntegrationProperties
-								.getMessageHandlerNotPropagatedHeaders()));
+			.getBeansOfType(AbstractReplyProducingMessageHandler.class)
+			.values()
+			.forEach(mh -> mh
+				.addNotPropagatedHeaders(springIntegrationProperties
+					.getMessageHandlerNotPropagatedHeaders()));
 	}
 
 }
