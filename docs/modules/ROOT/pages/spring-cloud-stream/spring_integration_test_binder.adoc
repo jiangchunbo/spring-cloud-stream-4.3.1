@@ -1,0 +1,263 @@
+[[testing]]
+= Testing
+
+Spring Cloud Stream provides support for testing your microservice applications without connecting to a messaging system.
+
+
+[[spring_integration_test_binder]]
+== Spring Integration Test Binder
+
+Spring Cloud Stream comes with a test binder which you can use for testing the various application components without requiring an actual real-world binder implementation or a message broker.
+
+This test binder acts as a bridge between _unit_ and _integration_ testing and is based on https://spring.io/projects/spring-integration[Spring Integration] framework as an in-JVM message broker essentially giving you the best of both worlds - a real binder without the networking.
+
+[[test-binder-configuration]]
+=== Test Binder configuration
+To enable Spring Integration test binder, you need to add it as a dependency and annotate your class with `@EnableTestBinder`.
+
+***Add required dependencies***
+
+Below is the example of the required Maven POM entries.
+
+[source,xml]
+----
+<dependency>
+	<groupId>org.springframework.cloud</groupId>
+	<artifactId>spring-cloud-stream-test-binder</artifactId>
+	<scope>test</scope>
+</dependency>
+----
+
+Or for build.gradle.kts
+
+[source,kotlin]
+----
+testImplementation("org.springframework.cloud:spring-cloud-stream-test-binder")
+----
+
+[[test-binder-usage]]
+=== Test Binder usage
+
+Now you can test your microservice as a simple unit test.
+To enable the Test Binder, annotate your class with `@EnableTestBinder`.
+
+[source,java]
+----
+@SpringBootTest
+public class SampleStreamTests {
+
+	@Autowired
+	private InputDestination input;
+
+	@Autowired
+	private OutputDestination output;
+
+	@Test
+	public void testEmptyConfiguration() {
+		this.input.send(new GenericMessage<byte[]>("hello".getBytes()));
+		assertThat(output.receive().getPayload()).isEqualTo("HELLO".getBytes());
+	}
+
+	@SpringBootApplication
+	@EnableTestBinder
+	public static class SampleConfiguration {
+		@Bean
+		public Function<String, String> uppercase() {
+			return v -> v.toUpperCase();
+		}
+	}
+}
+----
+
+And if you need more control or want to test several configurations in the same test suite
+you can also do the following:
+
+[source,java]
+----
+@EnableAutoConfiguration
+public static class MyTestConfiguration {
+	@Bean
+	public Function<String, String> uppercase() {
+			return v -> v.toUpperCase();
+	}
+}
+
+. . .
+
+@Test
+public void sampleTest() {
+	try (ConfigurableApplicationContext context = new SpringApplicationBuilder(
+				TestChannelBinderConfiguration.getCompleteConfiguration(
+						MyTestConfiguration.class))
+				.run("--spring.cloud.function.definition=uppercase")) {
+		InputDestination source = context.getBean(InputDestination.class);
+		OutputDestination target = context.getBean(OutputDestination.class);
+		source.send(new GenericMessage<byte[]>("hello".getBytes()));
+		assertThat(target.receive().getPayload()).isEqualTo("HELLO".getBytes());
+	}
+}
+----
+
+For cases where you have multiple bindings and/or multiple inputs and outputs, or simply want to be explicit about names of
+the destination you are sending to or receiving from, the `send()` and `receive()`
+methods of `InputDestination` and `OutputDestination` are overridden to allow you to provide the name of the input and output destination.
+
+Consider the following sample:
+[source,java]
+----
+@EnableAutoConfiguration
+public static class SampleFunctionConfiguration {
+
+	@Bean
+	public Function<String, String> uppercase() {
+		return value -> value.toUpperCase();
+	}
+
+	@Bean
+	public Function<String, String> reverse() {
+		return value -> new StringBuilder(value).reverse().toString();
+	}
+}
+----
+
+and the actual test
+
+[source,java]
+----
+@Test
+public void testMultipleFunctions() {
+	try (ConfigurableApplicationContext context = new SpringApplicationBuilder(
+			TestChannelBinderConfiguration.getCompleteConfiguration(
+					SampleFunctionConfiguration.class))
+							.run("--spring.cloud.function.definition=uppercase;reverse")) {
+
+		InputDestination inputDestination = context.getBean(InputDestination.class);
+		OutputDestination outputDestination = context.getBean(OutputDestination.class);
+
+		Message<byte[]> inputMessage = MessageBuilder.withPayload("Hello".getBytes()).build();
+		inputDestination.send(inputMessage, "uppercase-in-0");
+		inputDestination.send(inputMessage, "reverse-in-0");
+
+		Message<byte[]> outputMessage = outputDestination.receive(0, "uppercase-out-0");
+		assertThat(outputMessage.getPayload()).isEqualTo("HELLO".getBytes());
+
+		outputMessage = outputDestination.receive(0, "reverse-out-0");
+		assertThat(outputMessage.getPayload()).isEqualTo("olleH".getBytes());
+	}
+}
+----
+
+For cases where you have additional mapping properties such as `destination` you should use those names. For example, consider a different version of the
+preceding test where we explicitly map inputs and outputs of the `uppercase` function to `myInput` and `myOutput` binding names:
+[source,java]
+----
+@Test
+public void testMultipleFunctions() {
+	try (ConfigurableApplicationContext context = new SpringApplicationBuilder(
+			TestChannelBinderConfiguration.getCompleteConfiguration(
+					SampleFunctionConfiguration.class))
+							.run(
+							"--spring.cloud.function.definition=uppercase;reverse",
+							"--spring.cloud.stream.bindings.uppercase-in-0.destination=myInput",
+							"--spring.cloud.stream.bindings.uppercase-out-0.destination=myOutput"
+							)) {
+
+		InputDestination inputDestination = context.getBean(InputDestination.class);
+		OutputDestination outputDestination = context.getBean(OutputDestination.class);
+
+		Message<byte[]> inputMessage = MessageBuilder.withPayload("Hello".getBytes()).build();
+		inputDestination.send(inputMessage, "myInput");
+		inputDestination.send(inputMessage, "reverse-in-0");
+
+		Message<byte[]> outputMessage = outputDestination.receive(0, "myOutput");
+		assertThat(outputMessage.getPayload()).isEqualTo("HELLO".getBytes());
+
+		outputMessage = outputDestination.receive(0, "reverse-out-0");
+		assertThat(outputMessage.getPayload()).isEqualTo("olleH".getBytes());
+	}
+}
+----
+
+
+[[test-binder-and-pollablemessagesource]]
+=== Test Binder and PollableMessageSource
+Spring Integration Test Binder also allows you to write tests when working with `PollableMessageSource` (see <<Using Polled Consumers>> for more details).
+
+The important thing that needs to be understood though is that polling is not event-driven, and that `PollableMessageSource` is a strategy which exposes operation to produce (poll for) a Message (singular).
+How often you poll or how many threads you use or where you're polling from (message queue or file system) is entirely up to you;
+In other words it is your responsibility to configure Poller or Threads or the actual source of Message. Luckily Spring has plenty of abstractions to configure exactly that.
+
+Let's look at the example:
+
+[source, java]
+----
+@Test
+public void samplePollingTest() {
+	ApplicationContext context = new SpringApplicationBuilder(SamplePolledConfiguration.class)
+				.web(WebApplicationType.NONE)
+				.run("--spring.jmx.enabled=false", "--spring.cloud.stream.pollable-source=myDestination");
+	OutputDestination destination = context.getBean(OutputDestination.class);
+	System.out.println("Message 1: " + new String(destination.receive().getPayload()));
+	System.out.println("Message 2: " + new String(destination.receive().getPayload()));
+	System.out.println("Message 3: " + new String(destination.receive().getPayload()));
+}
+
+@EnableTestBinder
+@EnableAutoConfiguration
+public static class SamplePolledConfiguration {
+	@Bean
+	public ApplicationRunner poller(PollableMessageSource polledMessageSource, StreamBridge output, TaskExecutor taskScheduler) {
+		return args -> {
+			taskScheduler.execute(() -> {
+				for (int i = 0; i < 3; i++) {
+					try {
+						if (!polledMessageSource.poll(m -> {
+							String newPayload = ((String) m.getPayload()).toUpperCase();
+							output.send("myOutput", newPayload);
+						})) {
+							Thread.sleep(2000);
+						}
+					}
+					catch (Exception e) {
+						// handle failure
+					}
+				}
+			});
+		};
+	}
+}
+----
+
+The above (very rudimentary) example will produce 3 messages in 2 second intervals sending them to the output destination of `Source`
+which this binder sends to `OutputDestination` where we retrieve them (for any assertions).
+Currently, it prints the following:
+[source, text]
+----
+Message 1: POLLED DATA
+Message 2: POLLED DATA
+Message 3: POLLED DATA
+----
+As you can see the data is the same. That is because this binder defines a default implementation of the actual `MessageSource` - the source
+from which the Messages are polled using `poll()` operation. While sufficient for most testing scenarios, there are cases where you may want
+to define your own `MessageSource`. To do so simply configure a bean of type `MessageSource` in your test configuration providing your own
+implementation of Message sourcing.
+
+Here is the example:
+
+[source, java]
+----
+@Bean
+public MessageSource<?> source() {
+	return () -> new GenericMessage<>("My Own Data " + UUID.randomUUID());
+}
+----
+rendering the following output;
+[source, text]
+----
+Message 1: MY OWN DATA 1C180A91-E79F-494F-ABF4-BA3F993710DA
+Message 2: MY OWN DATA D8F3A477-5547-41B4-9434-E69DA7616FEE
+Message 3: MY OWN DATA 20BF2E64-7FF4-4CB6-A823-4053D30B5C74
+----
+
+NOTE: DO NOT name this bean `messageSource` as it is going to be in conflict with the bean of the same name (different type)
+provided by Spring Boot for unrelated reasons.

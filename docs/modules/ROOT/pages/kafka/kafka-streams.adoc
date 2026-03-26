@@ -1,0 +1,9 @@
+:nofooter:
+:sectlinks: true
+
+[[spring-cloud-stream-binder-kafka-streams-reference]]
+= Spring Cloud Stream Kafka Streams Binder Reference Guide
+
+xref:kafka/kafka-streams-binder/usage.adoc[Reference Guide]
+
+

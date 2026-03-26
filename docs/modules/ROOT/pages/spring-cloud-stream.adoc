@@ -1,0 +1,72 @@
+[[spring-cloud-stream-reference]]
+= Spring Cloud Stream Reference Documentation
+:page-section-summary-toc: 1
+
+
+:doctype: book
+
+// ======================================================================================
+
+[[preface]]
+== Preface
+
+
+This section goes into more detail about how you can work with Spring Cloud Stream.
+It covers topics such as creating and running stream applications.
+
+[[spring-cloud-stream-overview-introducing]]
+== Introducing Spring Cloud Stream
+
+Spring Cloud Stream is a framework for building message-driven microservice applications.
+Spring Cloud Stream builds upon Spring Boot to create standalone, production-grade Spring applications and uses Spring Integration to provide connectivity to message brokers.
+It provides opinionated configuration of middleware from several vendors, introducing the concepts of persistent publish-subscribe semantics, consumer groups, and partitions.
+
+By adding `spring-cloud-stream` dependencies to the classpath of your application, you get immediate connectivity
+to a message broker exposed by the provided `spring-cloud-stream` binder (more on that later), and you can implement your functional
+requirement, which is run (based on the incoming message) by a `java.util.function.Function`.
+
+The following listing shows a quick example:
+
+[source,java]
+----
+@SpringBootApplication
+public class SampleApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(SampleApplication.class, args);
+	}
+
+    @Bean
+	public Function<String, String> uppercase() {
+	    return value -> value.toUpperCase();
+	}
+}
+----
+
+The following listing shows the corresponding test:
+
+[source,java]
+----
+@SpringBootTest(classes =  SampleApplication.class)
+@EnableTestBinder
+class BootTestStreamApplicationTests {
+
+	@Autowired
+	private InputDestination input;
+
+	@Autowired
+	private OutputDestination output;
+
+	@Test
+	void contextLoads() {
+		input.send(new GenericMessage<byte[]>("hello".getBytes()));
+		assertThat(output.receive().getPayload()).isEqualTo("HELLO".getBytes());
+	}
+}
+----
+
+[[main-concepts]]
+== Main Concepts
+
+Spring Cloud Stream provides a number of abstractions and primitives that simplify the writing of message-driven microservice applications.
+The rest of this reference manual provides additional details.

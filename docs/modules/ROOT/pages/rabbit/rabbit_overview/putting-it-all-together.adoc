@@ -1,0 +1,47 @@
+[[putting-it-all-together]]
+= Putting it All Together
+
+The following configuration creates an exchange `myDestination` with queue `myDestination.consumerGroup` bound to a topic exchange with a wildcard routing key `#`:
+
+[source]
+---
+spring.cloud.stream.bindings.input.destination=myDestination
+spring.cloud.stream.bindings.input.group=consumerGroup
+#disable binder retries
+spring.cloud.stream.bindings.input.consumer.max-attempts=1
+#dlx/dlq setup
+spring.cloud.stream.rabbit.bindings.input.consumer.auto-bind-dlq=true
+spring.cloud.stream.rabbit.bindings.input.consumer.dlq-ttl=5000
+spring.cloud.stream.rabbit.bindings.input.consumer.dlq-dead-letter-exchange=
+---
+
+This configuration creates a DLQ bound to a direct exchange (`DLX`) with a routing key of `myDestination.consumerGroup`.
+When messages are rejected, they are routed to the DLQ.
+After 5 seconds, the message expires and is routed to the original queue by using the queue name as the routing key, as shown in the following example:
+
+.Spring Boot application
+[source,java]
+----
+@SpringBootApplication
+public class XDeathApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(XDeathApplication.class, args);
+    }
+
+    @Bean
+    public Consumer<Message<String>> listen() {
+        return message -> {
+            Map<?,?> death = message.getHeaders().get("x-death");
+            if (death != null && death.get("count").equals(3L)) {
+                // giving up - don't send to DLX
+                throw new ImmediateAcknowledgeAmqpException("Failed after 4 attempts");
+            }
+            throw new AmqpRejectAndDontRequeueException("failed");
+        };
+    }
+
+}
+----
+
+Notice that the count property in the `x-death` header is a `Long`.
